@@ -283,3 +283,23 @@ if __name__ == '__main__':
         if not provided, will try to find it automatically in default location'
     )
     args = parser.parse_args()
+
+    peers = GitHubPublicPeerGatherer().get_peers(
+        only_tcp=args.only_tcp,
+        only_tls=args.only_tls,
+        only_ipv4=args.only_ipv4,
+        only_ipv6=args.only_ipv6,
+    )
+
+    if args.only_alive:
+        peer_checker = YggdrasilPeerChecker()
+        peers = peer_checker.check_peers(peers)
+
+    ycm = YggdrasilConfigManager(args.config_file)
+    ycm.update_peers(
+        peers,
+        only_alive=args.only_alive,
+        sync=args.sync,
+        prefer_tcp=args.prefer_tcp,
+        prefer_tls=args.prefer_tls,
+    )
