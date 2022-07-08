@@ -5,7 +5,7 @@ description = ""
 authors = ["Ilya Bogdanov <zeerayne1337@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 validators = "^0.20.0"
 hjson = "^3.0.2"
 func-timeout = "^4.3.5"
