@@ -4,10 +4,12 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from functools import reduce
 from glob import glob
 from pathlib import Path
 from typing import List, Optional
 
+import hjson
 import validators
 from func_timeout import FunctionTimedOut, func_timeout
 
@@ -183,3 +185,49 @@ class YggdrasilPeerChecker:
         for peer in peers:
             peer.alive = self.check_peer(peer, self.timeout)
         return peers
+
+
+class YggdrasilConfigManager:
+
+    DEFAULT_CONFIG_FILE = 'yggdrasil.conf'
+    DEFAULT_CONFIGS = {
+        'linux': os.path.join('/', 'etc', 'yggdrasil', DEFAULT_CONFIG_FILE),
+        'win32': os.path.join(os.getenv('ALLUSERSPROFILE', ''), 'Yggdrasil', DEFAULT_CONFIG_FILE)
+    }
+    PEERS_KEY = 'Peers'
+
+    config_file = None
+    config = None
+
+    def __init__(self, config_file: str = None):
+        self.config_file = config_file if config_file else self.DEFAULT_CONFIGS.get(sys.platform)
+
+    def _read_config(self) -> dict:
+        with open(self.config_file, 'r', encoding='utf-8') as fhandle:
+            content = fhandle.read()
+        return hjson.loads(content)
+
+    def _write_config(self, config):
+        with open(self.config_file, 'w', encoding='utf-8') as fhandle:
+            fhandle.write(hjson.dumps(config))
+
+    def update_peers(
+        self,
+        peers: PeerData,
+        only_alive: bool = False,
+        sync: bool = False,
+        prefer_tcp: bool = False,
+        prefer_tls: bool = False
+    ):
+        cfg = self._read_config()
+        existing_peers_raw = cfg.setdefault(self.PEERS_KEY, [])
+        if only_alive:
+            peers = list(filter(lambda peer: peer.alive is True, peers))
+        if sync:
+            updated_peers = peers
+        else:
+            peers_set = set(peers)
+            existing_peers_set = set(parse_peers(reduce(lambda prev, curr: prev + f'{curr}\n', existing_peers_raw, '')))
+            updated_peers = list(peers_set - existing_peers_set)
+        cfg[self.PEERS_KEY] = [peer.raw for peer in updated_peers]
+        self._write_config(cfg)
