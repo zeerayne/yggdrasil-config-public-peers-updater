@@ -256,6 +256,14 @@ astor = ">=0.1"
 flake8 = ">=3.7"
 
 [[package]]
+name = "func-timeout"
+version = "4.3.5"
+description = "Python module which allows you to specify timeouts when calling any existing function. Also provides support for stoppable-threads"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "hjson"
 version = "3.0.2"
 description = "Hjson, a user interface for JSON."
@@ -693,6 +701,9 @@ flake8-quotes = [
 flake8-simplify = [
     {file = "flake8_simplify-0.19.2-py3-none-any.whl", hash = "sha256:9c1e96ba738f9057a561697d67df7a9058898ac6313a67eda09942255cba6d38"},
     {file = "flake8_simplify-0.19.2.tar.gz", hash = "sha256:a30ef76bf1c0cb89a52a8a5cee37667688e61a66735e997c08d56cd002f9e3e9"},
+]
+func-timeout = [
+    {file = "func_timeout-4.3.5.tar.gz", hash = "sha256:74cd3c428ec94f4edfba81f9b2f14904846d5ffccc27c92433b8b5939b5575dd"},
 ]
 hjson = [
     {file = "hjson-3.0.2-py3-none-any.whl", hash = "sha256:5546438bf4e1b52bc964c6a47c4ed10fa5fba8a1b264e22efa893e333baad2db"},

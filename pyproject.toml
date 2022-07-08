@@ -8,6 +8,7 @@ authors = ["Ilya Bogdanov <zeerayne1337@gmail.com>"]
 python = "^3.8"
 validators = "^0.20.0"
 hjson = "^3.0.2"
+func-timeout = "^4.3.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"
