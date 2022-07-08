@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import re
@@ -231,3 +232,54 @@ class YggdrasilConfigManager:
             updated_peers = list(peers_set - existing_peers_set)
         cfg[self.PEERS_KEY] = [peer.raw for peer in updated_peers]
         self._write_config(cfg)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Update yggdrasil configuration file with peers from GitHub repository'
+    )
+    parser.add_argument(
+        '--only-tcp', default=False, action=argparse.BooleanOptionalAction, help='Gather only TCP peers'
+    )
+    parser.add_argument(
+        '--only-tls', default=False, action=argparse.BooleanOptionalAction, help='Gather only TLS peers'
+    )
+    parser.add_argument(
+        '--only-ipv4', default=False, action=argparse.BooleanOptionalAction, help='Gather only IPv4 peers'
+    )
+    parser.add_argument(
+        '--only-ipv6', default=False, action=argparse.BooleanOptionalAction, help='Gather only IPv6 peers'
+    )
+    parser.add_argument(
+        '--only-alive',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help='Add only alive peers to config. Every peers will be checked, it can take some time'
+    )
+    parser.add_argument(
+        '--sync',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help='Sync peers in config with gathered ones. Others words, replaces peers in config with gathered'
+    )
+    parser.add_argument(
+        '--prefer-tcp',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help='If peer is available by TCP and TLS protocols, only TCP will be used'
+    )
+    parser.add_argument(
+        '--prefer-tls',
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help='If peer is available by TCP and TLS protocols, only TLS will be used'
+    )
+    parser.add_argument(
+        'config_file',
+        type=str,
+        default=None,
+        nargs='?',
+        help='Yggdrasil configuration file to update, \
+        if not provided, will try to find it automatically in default location'
+    )
+    args = parser.parse_args()
