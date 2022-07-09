@@ -1,4 +1,5 @@
 import argparse
+from itertools import groupby
 import logging
 import os
 import re
@@ -21,14 +22,22 @@ log = logging.Logger(__name__)
 @dataclass
 class PeerData:
     proto: str
-    address: str
+    _address: str
     port: int
     params: str
     alive: Optional[bool] = None
 
     @property
+    def address(self) -> str:
+        return self._address.strip('[]')
+
+    @address.setter
+    def address(self, value: str) -> None:
+        self._address = value
+
+    @property
     def raw(self) -> str:
-        return f'{self.proto}://{self.address}:{self.port}{self.params}'
+        return f'{self.proto}://{self._address}:{self.port}{self.params}'
 
     def __hash__(self) -> int:
         return hash(self.raw)
@@ -53,7 +62,7 @@ class cd:
 
 
 def parse_peers(text: str, regex_string_suffux: str = '') -> List[PeerData]:
-    pattern = '(?P<proto>tcp|tls)://(?P<address>(?:[0-9.]+)|(?:\[[0-9a-fA-F:]+\])|(?:[A-Za-z0-9](?:[.A-Za-z0-9\-]{0,61}\.[A-Za-z0-9]{2,}))):(?P<port>[0-9]+)(?P<params>[?=&\w\d]*)'
+    pattern = '(?P<proto>tcp|tls)://(?P<address>(?:[0-9.]+)|(?:\[[0-9a-fA-F:]+\])|(?:[A-Za-z0-9](?:[.A-Za-z0-9\-]{0,61}\.[A-Za-z0-9]{2,}))):(?P<port>[0-9]+)(?P<params>[?=&\w\d]*)'  # noqa
     pattern += regex_string_suffux
     address_matches = re.finditer(pattern, text)
     return [
@@ -98,7 +107,7 @@ class GitHubPublicPeerGatherer:
             valid = True
             valid &= any([
                 validators.ip_address.ipv4(peer.address),
-                validators.ip_address.ipv6(peer.address.strip('[]')),
+                validators.ip_address.ipv6(peer.address),
                 validators.domain(peer.address)
             ])
             valid &= validators.between(peer.port, min=1, max=65535)
@@ -109,7 +118,7 @@ class GitHubPublicPeerGatherer:
             valid &= not only_tcp or peer.proto == 'tcp'
             valid &= not only_tls or peer.proto == 'tls'
             valid &= not only_ipv4 or validators.ip_address.ipv4(peer.address)
-            valid &= not only_ipv6 or validators.ip_address.ipv6(peer.address.strip('[]'))
+            valid &= not only_ipv6 or validators.ip_address.ipv6(peer.address)
             return valid
 
         self._prepare_repo()
@@ -212,6 +221,19 @@ class YggdrasilConfigManager:
         with open(self.config_file, 'w', encoding='utf-8') as fhandle:
             fhandle.write(hjson.dumps(config))
 
+    def _filter_prefer_proto(self, peers: PeerData, proto: str) -> List[PeerData]:
+        grouped = groupby(peers, key=lambda e: e.address)
+
+        def reducer_func(prev, curr):
+            _, grouper = curr
+            lst = list(grouper)
+            if len(lst) < 2:
+                return prev + lst
+            else:
+                return prev + list(filter(lambda e: e.proto == proto, lst))
+
+        return list(reduce(reducer_func, grouped, []))
+
     def update_peers(
         self,
         peers: PeerData,
@@ -222,6 +244,11 @@ class YggdrasilConfigManager:
     ):
         cfg = self._read_config()
         existing_peers_raw = cfg.setdefault(self.PEERS_KEY, [])
+        if not all([prefer_tcp, prefer_tls]):
+            if prefer_tcp:
+                peers = self._filter_prefer_proto(peers, 'tcp')
+            if prefer_tls:
+                peers = self._filter_prefer_proto(peers, 'tls')
         if only_alive:
             peers = list(filter(lambda peer: peer.alive is True, peers))
         if sync:
@@ -229,7 +256,7 @@ class YggdrasilConfigManager:
         else:
             peers_set = set(peers)
             existing_peers_set = set(parse_peers(reduce(lambda prev, curr: prev + f'{curr}\n', existing_peers_raw, '')))
-            updated_peers = list(peers_set - existing_peers_set)
+            updated_peers = peers_set.union(existing_peers_set)
         cfg[self.PEERS_KEY] = [peer.raw for peer in updated_peers]
         self._write_config(cfg)
 
