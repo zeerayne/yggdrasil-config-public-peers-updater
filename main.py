@@ -1,13 +1,14 @@
 import argparse
-from itertools import groupby
 import logging
 import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from functools import reduce
 from glob import glob
+from itertools import groupby
 from pathlib import Path
 from typing import List, Optional
 
@@ -66,9 +67,7 @@ def parse_peers(text: str, regex_string_suffux: str = '') -> List[PeerData]:
     pattern += regex_string_suffux
     address_matches = re.finditer(pattern, text)
     return [
-        PeerData(m.group('proto'),
-                 m.group('address'), int(m.group('port')), m.group('params'))
-        for m in address_matches
+        PeerData(m.group('proto'), m.group('address'), int(m.group('port')), m.group('params')) for m in address_matches
     ]
 
 
@@ -77,7 +76,7 @@ class GitHubPublicPeerGatherer:
     YGGDRASIL_PUBLIC_PEERS_REPO_URL = 'https://github.com/yggdrasil-network/public-peers.git'
 
     def _execute_shell_command(self, command) -> int:
-        proc = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, shell=True)
+        proc = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         proc.wait()
         return proc.returncode
 
@@ -148,47 +147,56 @@ class YggdrasilPeerChecker:
     def _ygg_genconf(self) -> dict:
         yggdrasil = subprocess.Popen(['yggdrasil', '-genconf'], stdout=subprocess.PIPE)
         yggdrasil.wait()
-        return hjson.loads(yggdrasil.stdout)
+        return hjson.loads(yggdrasil.stdout.read())
 
     def _add_peer_to_conf(self, conf: dict, peer: PeerData) -> dict:
         peers = conf.setdefault(YggdrasilConfigManager.PEERS_KEY, [])
-        peers.append[peer.raw]
+        peers.append(peer.raw)
         return conf
 
     def check_peer(self, peer: PeerData, timeout=10) -> bool:
         conf = self._ygg_genconf()
-        conf = self._add_peer_to_conf(conf)
+        conf = self._add_peer_to_conf(conf, peer)
 
-        yggdrasil = subprocess.Popen(['yggdrasil', '-useconf'], stdout=subprocess.PIPE, stdin=hjson.dumps(conf))
+        with tempfile.NamedTemporaryFile(mode='w') as tempconf:
+            tempconf.write(hjson.dumps(conf))
+            yggdrasil = subprocess.Popen(['yggdrasil', '-useconffile', tempconf.name], stdout=subprocess.PIPE)
 
-        def parse_stdout_line(stdout_line):
-            log.debug(f'Read yggdrasil stdout line: {stdout_line}')
-            if len(stdout_line) == 0:
-                return False
-            if stdout_line.find(f'Connected {peer.proto.upper()}') == -1:
-                return False
-            if len(stdout_line.split()) < 5:
-                return False
-            try:
-                ygg_ip, public_ip = stdout_line.split()[4].split('@')
-                return {'ygg_ip': ygg_ip, 'public_ip': public_ip[:-1]}
-            except IndexError:
-                return False
-
-        def connect_to_peer():
-            for stdout_line in iter(yggdrasil.stdout.readline, ''):
-                if parse_stdout_line(stdout_line):
+            def check_stdout_line(stdout_line):
+                log.debug(f'Read yggdrasil stdout line: {stdout_line}')
+                if len(stdout_line) == 0:
+                    return False
+                if stdout_line.find(f'Connected {peer.proto.upper()}') == -1:
+                    return False
+                if len(stdout_line.split()) < 5:
+                    return False
+                try:
+                    stdout_line.split()[4].split('@')
                     return True
+                except IndexError:
+                    return False
 
-        try:
-            connected_to_peer = func_timeout(timeout, connect_to_peer)
-        except FunctionTimedOut:
-            connected_to_peer = False
+            def connect_to_peer():
+                for stdout_line in yggdrasil.stdout:
+                    if check_stdout_line(stdout_line):
+                        return True
 
-        if connected_to_peer:
-            ping = subprocess.Popen(self.ping_command)
-            connected_to_peer = ping.wait() == 0
-        yggdrasil.terminate()
+            try:
+                connected_to_peer = func_timeout(timeout, connect_to_peer)
+            except FunctionTimedOut:
+                connected_to_peer = False
+
+            if connected_to_peer:
+                log.debug(f'Connection to peer succeeded: {peer.raw}')
+                ping = subprocess.Popen(self.ping_command)
+                connected_to_peer = ping.wait() == 0
+                if connected_to_peer:
+                    log.debug(f'Ping via peer succeeded: {peer.raw}')
+                else:
+                    log.debug(f'Ping via peer failed: {peer.raw}')
+            else:
+                log.debug(f'Connection to peer failed: {peer.raw}')
+            yggdrasil.terminate()
         return connected_to_peer
 
     def check_peers(self, peers: List[PeerData]):
