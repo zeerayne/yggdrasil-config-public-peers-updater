@@ -273,42 +273,23 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Update yggdrasil configuration file with peers from GitHub repository'
     )
-    parser.add_argument(
-        '--only-tcp', default=False, action=argparse.BooleanOptionalAction, help='Gather only TCP peers'
-    )
-    parser.add_argument(
-        '--only-tls', default=False, action=argparse.BooleanOptionalAction, help='Gather only TLS peers'
-    )
-    parser.add_argument(
-        '--only-ipv4', default=False, action=argparse.BooleanOptionalAction, help='Gather only IPv4 peers'
-    )
-    parser.add_argument(
-        '--only-ipv6', default=False, action=argparse.BooleanOptionalAction, help='Gather only IPv6 peers'
-    )
-    parser.add_argument(
-        '--only-alive',
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help='Add only alive peers to config. Every peers will be checked, it can take some time'
-    )
-    parser.add_argument(
-        '--sync',
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help='Sync peers in config with gathered ones. Others words, replaces peers in config with gathered'
-    )
-    parser.add_argument(
-        '--prefer-tcp',
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help='If peer is available by TCP and TLS protocols, only TCP will be used'
-    )
-    parser.add_argument(
-        '--prefer-tls',
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help='If peer is available by TCP and TLS protocols, only TLS will be used'
-    )
+
+    def add_argparse_option(name, help):
+        parser.add_argument(name, action='store_true', help=help)
+
+    options = [
+        ('--only-tcp', 'Gather only TCP peers'),
+        ('--only-tls', 'Gather only TLS peers'),
+        ('--only-ipv4', 'Gather only IPv4 peers'),
+        ('--only-ipv6', 'Gather only IPv6 peers'),
+        ('--only-alive', 'Add only alive peers to config. Every peers will be checked, it can take some time'),
+        ('--sync', 'Sync peers in config with gathered ones. Others words, replaces peers in config with gathered'),
+        ('--prefer-tcp', 'If peer is available by TCP and TLS protocols, only TCP will be used'),
+        ('--prefer-tls', 'If peer is available by TCP and TLS protocols, only TLS will be used'),
+    ]
+
+    [add_argparse_option(*opt) for opt in options]
+
     parser.add_argument(
         'config_file',
         type=str,
